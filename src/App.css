@@ -1,38 +1,91 @@
-.App {
-  text-align: center;
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+#main {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  overflow: auto;
+}
+#root {
+  min-height: 100%;
+  height: 100%;
+}
+.title {
+  content: "Simulator";
+}
+.gate {
+  position: absolute;
+  top: 20px;
+  left: 196px;
+  cursor: pointer;
+}
+.gate:hover {
+  background-color: aliceblue;
+}
+.port {
+  height: 4px;
+  width: 4px;
+  border-radius: 4px;
+  background-color: #000;
+  cursor: pointer;
+}
+.port:hover {
+  background-color: blue;
+  height: 6px;
+  width: 6px;
+  border-radius: 6px;
+}
+.and_gate {
+  height: 45px;
+  width: 40px;
+  border: #000 1px solid;
+  border-top-right-radius: 20px;
+  border-bottom-right-radius: 20px;
+}
+.or_gate {
+  height: 45px;
+  width: 40px;
+  border: #000 1px solid;
+  border-top-right-radius: 20px;
+  border-bottom-right-radius: 20px;
+}
+.dot {
+  height: 2.5px;
+  width: 2.5px;
+  background-color: rgb(202, 202, 202);
+  border-radius: 2.5px;
+  position: absolute;
+}
+.dot:hover {
+  height: 5px;
+  width: 5px;
+  border-radius: 5px;
+  background-color: blue;
+  cursor: pointer;
+}
+#board {
+  /* display: flex; */
+  overflow: scroll;
+  overflow-x: scroll;
+}
+.sidepane {
+  flex-wrap: wrap;
+  overflow: auto;
+  width: 180px;
+  height: 100%;
+  border-right: 2px #333 solid;
+  /* position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0; */
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
-}
-
-.App-link {
-  color: #61dafb;
-}
-
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.wire {
+  position: absolute;
 }
