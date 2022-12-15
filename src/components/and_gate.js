@@ -24,7 +24,9 @@ class And_gate extends Gates {
       <div
         className={"gate"}
         style={
-          sidepane ? { position: "relative", top: 0, left: 0 } : { top, left }
+          sidepane
+            ? { position: "relative", top: 0, left: 0 }
+            : { top: top - 2, left }
         }
       >
         <div

@@ -3,7 +3,7 @@ import React from "react";
 import Sidepane from "./sections.js/sidepane";
 import Board from "./sections.js/board";
 import Emitter from "semitter";
-import { _id } from "./assets/js/utils";
+import { is_child_of, round_nearest_20, _id } from "./assets/js/utils";
 
 const emitter = new Emitter();
 
@@ -60,6 +60,7 @@ class Simulator extends React.Component {
     this.remove_active_component = () =>
       this.setState({ active_component: null });
 
+    this.double_click = 0;
     this.onclick = (e) => {
       let { target } = e;
 
@@ -68,18 +69,84 @@ class Simulator extends React.Component {
       let { active_component } = this.state;
 
       if (active_component) {
-        this.setState({ active_component: null });
-        return emitter.emit(`remove_active_component_${active_component._id}`);
+        if (active_component._id.startsWith("wire")) {
+          let top, left;
+          target = is_child_of(target, "dot");
+
+          if (target) {
+            let name = target
+              .getAttribute("name")
+              .split(",")
+              .map((n) => Number(n));
+            top = name[1];
+            left = name[0];
+          } else {
+            console.log(target);
+            return;
+          }
+
+          let calculated_dot = this.calculate_dot(top, left);
+          let previous_dot = active_component.path.slice(-1)[0];
+          console.log(previous_dot);
+
+          if (
+            calculated_dot &&
+            Math.abs(calculated_dot[0]) === Math.abs(previous_dot[0]) &&
+            Math.abs(calculated_dot[1]) === Math.abs(previous_dot[1]) &&
+            Math.abs(calculated_dot[2]) === Math.abs(previous_dot[2]) &&
+            Math.abs(calculated_dot[3]) === Math.abs(previous_dot[3])
+          ) {
+            emitter.emit(`pop_wire_node_${active_component._id}`);
+            return this.setState({ active_component: null });
+          }
+
+          calculated_dot && active_component.path.push(calculated_dot);
+
+          emitter.emit(
+            `wire_current_endpoint_${active_component._id}`,
+            active_component.path
+          );
+
+          return this.setState({ active_component });
+        } else {
+          this.setState({ active_component: null });
+          return emitter.emit(
+            `remove_active_component_${active_component._id}`
+          );
+        }
       }
       if (class_list.contains("port")) {
         this.setState({ active_component: this.state.wires[id] });
-      } else if (class_list.contains("dot")) {
-        this.add_wire(target.getAttribute("name").split(","));
+      } else if (is_child_of(target, "dot")) {
+        this.add_wire(
+          is_child_of(target, "dot").getAttribute("name").split(",")
+        );
       } else if (class_list.contains("gate_body")) {
         if (class_list.contains("add_gate"))
           this.add_gate(target.getAttribute("name"));
         else this.setState({ active_component: this.state.gates[id] });
       }
+    };
+
+    this.calculate_dot = (top, left) => {
+      let calculated_dot;
+      let previous_dot = this.state.active_component.path.slice(-1);
+      previous_dot = previous_dot[0];
+
+      let distance_from_x_axis = previous_dot[0] - left,
+        distance_from_y_axis = previous_dot[1] - top;
+
+      distance_from_x_axis = Math.abs(distance_from_x_axis);
+      distance_from_y_axis = Math.abs(distance_from_y_axis);
+
+      // if (previous_dot[0] === left && previous_dot[1] === top) return;
+      if (distance_from_x_axis > distance_from_y_axis) {
+        calculated_dot = [left, previous_dot[1], distance_from_x_axis, 2];
+      } else if (distance_from_x_axis < distance_from_y_axis) {
+        calculated_dot = [previous_dot[0], top, 2, distance_from_y_axis];
+      } else calculated_dot = previous_dot;
+
+      return calculated_dot;
     };
 
     document.addEventListener("mousemove", (e) => {
@@ -90,51 +157,24 @@ class Simulator extends React.Component {
         Math.round(e.clientY / this.dot_distance) * this.dot_distance - 2;
       let left = Math.round(e.clientX / this.dot_distance) * this.dot_distance;
       if (left < this.allowed_left) left = this.allowed_left;
+      top = round_nearest_20(top);
+      left = round_nearest_20(left);
 
       if (active_component._id.startsWith("wire")) {
-        let previous_dot = active_component.path.slice(-1)[0];
-        let coords = previous_dot.length === 2;
+        let previous_dot = this.state.active_component.path.slice(-1)[0];
+        let calculated_dot = this.calculate_dot(top, left);
 
-        console.log(active_component.path, "previous path");
-
-        let calculated_dot;
-        let distance_from_x_axis = previous_dot[0] - left,
-          distance_from_y_axis = previous_dot[1] - top;
-
-        let neg_y = distance_from_y_axis,
-          neg_x = distance_from_x_axis;
-
-        distance_from_x_axis = Math.abs(distance_from_x_axis);
-        distance_from_y_axis = Math.abs(distance_from_y_axis);
-
-        if (neg_x < 0) {
-          distance_from_x_axis -= this.dot_distance;
-          left -= this.dot_distance;
-        }
-        if (neg_y < 0) {
-          distance_from_y_axis -= this.dot_distance;
-          top -= this.dot_distance;
-        } else distance_from_y_axis += this.dot_distance;
-
-        if (previous_dot[0] === left && previous_dot[1] === top) return;
-
-        if (distance_from_x_axis === distance_from_y_axis) {
-          return;
-        } else if (distance_from_x_axis > distance_from_y_axis) {
-          calculated_dot = [left, previous_dot[1], distance_from_x_axis, 2];
-        } else if (distance_from_x_axis < distance_from_y_axis) {
-          calculated_dot = [previous_dot[0], top, 2, distance_from_y_axis];
-        }
+        if (!previous_dot[0]) return;
 
         if (calculated_dot[0] === previous_dot[0]) {
-          previous_dot[3] = top;
+          previous_dot[3] = top - previous_dot[1];
+          previous_dot[2] = 2;
           active_component.path.splice(-1, 1, previous_dot);
         } else if (calculated_dot[1] === previous_dot[1]) {
-          previous_dot[2] = left;
+          previous_dot[2] = left - previous_dot[0];
           active_component.path.splice(-1, 1, previous_dot);
-        } else active_component.path.push(calculated_dot);
-
-        console.log(active_component.path);
+          previous_dot[3] = 2;
+        }
 
         emitter.emit(
           `wire_current_endpoint_${active_component._id}`,

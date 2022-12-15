@@ -14,9 +14,11 @@ class Dot extends React.Component {
       <div
         id={id}
         name={`${left},${top}`}
-        style={{ top, left }}
+        style={{ top: top - 4, left: left - 4 }}
         className="dot"
-      ></div>
+      >
+        <div className="dot_inner"></div>
+      </div>
     );
   }
 }

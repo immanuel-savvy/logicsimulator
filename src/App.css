@@ -40,38 +40,41 @@ body {
   width: 6px;
   border-radius: 6px;
 }
-.and_gate {
-  height: 45px;
-  width: 40px;
+.gate_body {
   border: #000 1px solid;
+  height: 40px;
+  width: 35px;
+}
+.and_gate {
   border-top-right-radius: 20px;
   border-bottom-right-radius: 20px;
 }
 .or_gate {
-  height: 45px;
-  width: 40px;
   border: #000 1px solid;
   border-top-right-radius: 20px;
   border-bottom-right-radius: 20px;
 }
 .dot {
-  height: 2.5px;
-  width: 2.5px;
-  background-color: rgb(202, 202, 202);
   border-radius: 2.5px;
   position: absolute;
+  z-index: 999;
 }
 .dot:hover {
-  height: 5px;
-  width: 5px;
   border-radius: 5px;
   background-color: blue;
   cursor: pointer;
+  z-index: 999;
+}
+div.dot_inner {
+  background-color: rgb(202, 202, 202) !important;
+  height: 2.5px !important;
+  width: 2.5px !important;
+  z-index: 1000 !important;
+  border-radius: 2.5 !important;
+  margin: 4px !important;
 }
 #board {
   /* display: flex; */
-  overflow: scroll;
-  overflow-x: scroll;
 }
 .sidepane {
   flex-wrap: wrap;

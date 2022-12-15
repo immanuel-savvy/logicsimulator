@@ -12,4 +12,42 @@ const _id = (folder) => {
   return `${folder}~${random_value}~${Date.now()}`;
 };
 
-export { _id, gen_random_int, charset };
+const is_child_of = (
+  target,
+  parent,
+  by = "class_name",
+  include_target = true
+) => {
+  let child_element, parent_element;
+  if (by === "class_name") {
+    if (include_target && target.classList.contains(parent)) return target;
+
+    child_element = target;
+    while (true) {
+      parent_element = child_element.parentElement;
+      if (!parent_element) return;
+
+      if (parent_element.classList.contains(parent)) return parent_element;
+      child_element = parent_element;
+    }
+  }
+
+  if (by === "id") {
+    if (include_target && target.id.split(" ").includes(parent)) return target;
+
+    child_element = target;
+    while (true) {
+      parent_element = child_element.parentElement;
+      if (!parent_element) return;
+
+      if (parent_element.id.split(" ").includes(parent)) return parent_element;
+      child_element = parent_element;
+    }
+  }
+};
+
+const round_nearest_20 = (num) => {
+  return Math.round(num / 20) * 20;
+};
+
+export { _id, gen_random_int, charset, is_child_of, round_nearest_20 };
