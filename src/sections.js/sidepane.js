@@ -1,5 +1,6 @@
 import React from "react";
 import And_gate from "../components/and_gate";
+import Coords from "../components/coord";
 import Not_gate from "../components/not_gate";
 import Or_gate from "../components/or_gate";
 
@@ -29,6 +30,8 @@ class Sidepane extends React.Component {
           <Or_gate sidepane />
           <Not_gate sidepane />
         </div>
+
+        <Coords />
       </div>
     );
   }

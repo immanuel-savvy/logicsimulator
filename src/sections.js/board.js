@@ -17,9 +17,10 @@ class Board extends React.Component {
 
     return (
       <div id="board">
-        {dots.map(({ top, left }, index) => (
-          <Dot top={top} left={left} id={index} key={index} />
-        ))}
+        {Object.keys(dots).map((key, index) => {
+          let { top, left } = dots[key];
+          return <Dot top={top} left={left} id={index} key={index} />;
+        })}
 
         {Object.keys(wires).map((wire_id) => (
           <Wire key={wire_id} wire={wires[wire_id]} />

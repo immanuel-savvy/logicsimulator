@@ -57,13 +57,13 @@ body {
 .dot {
   border-radius: 2.5px;
   position: absolute;
-  z-index: 999;
+  /* z-index: 999; */
 }
 .dot:hover {
   border-radius: 5px;
   background-color: blue;
   cursor: pointer;
-  z-index: 999;
+  /* z-index: 999; */
 }
 div.dot_inner {
   background-color: rgb(202, 202, 202) !important;
