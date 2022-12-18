@@ -3,7 +3,12 @@ import React from "react";
 import Sidepane from "./sections.js/sidepane";
 import Board from "./sections.js/board";
 import Emitter from "semitter";
-import { is_child_of, round_nearest_20, _id } from "./assets/js/utils";
+import {
+  copy_object,
+  is_child_of,
+  round_nearest_20,
+  _id,
+} from "./assets/js/utils";
 
 const emitter = new Emitter();
 
@@ -13,8 +18,10 @@ class Simulator extends React.Component {
 
     this.state = {
       gates: new Object(),
-      dots: new Array(),
+      dots: new Object(),
       wires: new Object(),
+      inputs: new Object(),
+      outputs: new Object(),
     };
   }
 
@@ -30,8 +37,8 @@ class Simulator extends React.Component {
 
     for (let r = this.default_top; r < num_rows; r++) {
       for (let c = this.default_left; c < num_cols; c++) {
-        top = r * this.dot_distance;
-        left = c * this.dot_distance;
+        top = round_nearest_20(r * this.dot_distance);
+        left = round_nearest_20(c * this.dot_distance);
 
         dots[`${left},${top}`] = {
           _id: _id("dot"),
@@ -46,101 +53,6 @@ class Simulator extends React.Component {
     this.default_left *= this.dot_distance;
 
     this.setState({ dots });
-  };
-
-  resort_dot_wires = (dot, wire, filter = false) => {
-    const sort_dot_wires = ({ left, top }) => {
-      let dot = this.state.dots[`${left},${top}`];
-      if (filter) dot.wires.delete(wire);
-      else dot.wires.add(wire);
-
-      // console.log(dot);
-      return dot;
-    };
-
-    const clean_dot_wires = (dot) => {
-      if (!dot) return dot;
-
-      let wires = Array.from(dot.wires);
-
-      for (let w = 0; w < wires.length; w++) {
-        let wire = this.state.wires[wires[w]];
-        let found = false;
-        for (let p = 0; p < wire.path.length; p++) {
-          let path = wire.path[p];
-          if (path[3] === 2) {
-            if (path[2] > 0)
-              for (
-                let i = path[0];
-                i <= path[0] + path[2];
-                i += this.dot_distance
-              ) {
-                if (i === dot[0]) {
-                  found = true;
-                  break;
-                }
-              }
-            else if (path[2] < 0)
-              for (
-                let i = path[0];
-                i >= path[0] + path[2];
-                i -= this.dot_distance
-              ) {
-                if (i === dot[0]) {
-                  found = true;
-                  break;
-                }
-              }
-          } else if (path[2] === 2) {
-            if (path[3] > 0)
-              for (
-                let i = path[1];
-                i <= path[1] + path[3];
-                i += this.dot_distance
-              ) {
-                if (i === dot[1]) {
-                  found = true;
-                  break;
-                }
-              }
-            else if (path[3] < 0)
-              for (
-                let i = path[1];
-                i >= path[1] + path[3];
-                i -= this.dot_distance
-              ) {
-                if (i === dot[1]) {
-                  found = true;
-                  break;
-                }
-              }
-          }
-          if (found) break;
-        }
-        if (!found) dot.wires.delete(wire._id);
-      }
-    };
-
-    let res;
-    if (dot[2] === 2) {
-      if (dot[3] < 0) {
-        for (let i = dot[1]; i >= dot[1] + dot[3]; i -= this.dot_distance)
-          res = sort_dot_wires({ left: dot[0], top: i });
-      } else if (dot[3] > 0) {
-        for (let i = dot[1]; i <= dot[1] + dot[3]; i += this.dot_distance)
-          res = sort_dot_wires({ left: dot[0], top: i });
-      }
-    } else if (dot[3] === 2) {
-      if (dot[2] < 0) {
-        for (let i = dot[0]; i >= dot[0] + dot[2]; i -= this.dot_distance)
-          res = sort_dot_wires({ top: dot[1], left: i });
-      } else if (dot[2] > 0) {
-        for (let i = dot[0]; i <= dot[0] + dot[2]; i += this.dot_distance)
-          res = sort_dot_wires({ top: dot[1], left: i });
-      }
-    }
-
-    return clean_dot_wires(res);
   };
 
   calculate_dot = (top, left, wire) => {
@@ -168,14 +80,33 @@ class Simulator extends React.Component {
     return calculated_dot;
   };
 
-  get_click_location = (e) => {
+  get_click_location = (e, actual = false) => {
     let top = Math.round(e.clientY / this.dot_distance) * this.dot_distance - 2;
     let left = Math.round(e.clientX / this.dot_distance) * this.dot_distance;
-    if (left < this.allowed_left) left = this.allowed_left;
+    if (left < this.allowed_left && !actual) left = this.allowed_left;
+
     top = round_nearest_20(top);
     left = round_nearest_20(left);
 
     return { top, left };
+  };
+
+  find_wire = (dot) => {
+    let { wires } = this.state;
+    let { left, top } = dot;
+    let wires_ = new Array();
+
+    for (const wire_id in wires) {
+      let wire = wires[wire_id];
+      let [start, end] = wire.path;
+
+      if (start[0] === left && end[0] === left) {
+        if (end[1] >= top && start[1] <= top) wires_.push(wire);
+      } else if (start[1] === top && end[1] === top)
+        if (end[0] >= left && start[0] <= left) wires_.push(wire);
+    }
+
+    return wires_;
   };
 
   componentDidMount = () => {
@@ -201,322 +132,442 @@ class Simulator extends React.Component {
 
       let id = target.id,
         class_list = target.classList;
-      let { active_component } = this.state;
+      let { active_component, touch } = this.state;
 
       if (active_component) {
-        if (active_component._id.startsWith("wire")) {
-          let top, left;
+        if (!touch && active_component._id.startsWith("wire")) {
+          let left, top;
           target = is_child_of(target, "dot");
+          if (!target) return;
 
-          if (target) {
-            let name = target
-              .getAttribute("name")
-              .split(",")
-              .map((n) => Number(n));
-            top = name[1];
-            left = name[0];
-          } else {
-            return;
-          }
-
-          let calculated_dot = this.calculate_dot(top, left);
-          let previous_dot = active_component.path.slice(-1)[0];
-
+          let dot = this.state.dots[target.getAttribute("name")];
           if (
-            calculated_dot &&
-            Math.abs(calculated_dot[0]) === Math.abs(previous_dot[0]) &&
-            Math.abs(calculated_dot[1]) === Math.abs(previous_dot[1]) &&
-            Math.abs(calculated_dot[2]) === Math.abs(previous_dot[2]) &&
-            Math.abs(calculated_dot[3]) === Math.abs(previous_dot[3])
+            dot.top === this.recent_dot.top &&
+            dot.left === this.recent_dot.left
           ) {
-            emitter.emit(`pop_wire_node_${active_component._id}`);
-
+            emitter.emit(`remove_active_dot_${this.recent_dot._id}`);
+            this.recent_dot = null;
+            this.recent_wire = null;
             return this.setState({ active_component: null });
           }
 
-          calculated_dot && active_component.path.push(calculated_dot);
+          let wires = this.find_wire(dot),
+            wire;
 
-          emitter.emit(
-            `wire_current_endpoint_${active_component._id}`,
-            active_component.path
-          );
-
-          this.setState({ active_component });
-        } else if (active_component._id.startsWith("dot")) {
-          let coords = this.get_click_location(e);
-          if (this.recent_click_coords) {
+          if (wires.length) {
+            let is_vertical_dot = this.recent_dot.left === dot.left;
             if (
-              coords.top === this.recent_click_coords.top &&
-              coords.left === this.recent_click_coords.left
+              !active_component.vertical &&
+              is_vertical_dot &&
+              wires.find((wire) => wire.vertical)
             ) {
-              this.recent_click_coords = null;
-              this.floating_wire = null;
-              this.wire_path = null;
-              return this.setState({ active_component: null });
-            } else {
-              let wire = this.floating_wire[4];
-              this.floating_wire.pop();
-              if (!this.floating_wire[3])
-                emitter.emit(`pop_floating_wire_${wire}`);
-              else {
-                wire = this.state.wires[wire].path.push(this.floating_wire);
-                emitter.emit(`persist_floating_wire_${this.floating_wire[4]}`);
-              }
-
-              this.floating_wire = null;
-              this.wire_path = null;
+              active_component = wires.find((wire) => wire.vertical);
+              this.setState({ active_component });
+              wire = true;
+            } else if (
+              active_component.vertical &&
+              !is_vertical_dot &&
+              wires.find((wire) => !wire.vertical)
+            ) {
+              active_component = wires.find((wire) => !wire.vertical);
+              this.setState({ active_component });
+              wire = true;
+            } else if (
+              wires.find((wire) => wire._id === active_component._id)
+            ) {
+              wire = true;
             }
           }
 
-          this.recent_click_coords = coords;
+          if (wire) {
+            let trim_start, trim_end, dot_start, dot_end;
+            if (
+              this.recent_dot.left === active_component.path[0][0] &&
+              this.recent_dot.top === active_component.path[0][1]
+              /* Trim wire from start */
+            ) {
+              trim_start = true;
+            }
+            if (
+              this.recent_dot.left === active_component.path[1][0] &&
+              this.recent_dot.top === active_component.path[1][1]
+              /* Trim wire from end */
+            ) {
+              trim_end = true;
+            }
+
+            if (
+              dot.left === active_component.path[0][0] &&
+              dot.top === active_component.path[0][1]
+              /* Trim wire from start */
+            ) {
+              dot_start = true;
+            }
+            if (
+              dot.left === active_component.path[1][0] &&
+              dot.top === active_component.path[1][1]
+              /* Trim wire from end */
+            ) {
+              dot_end = true;
+            }
+
+            if ((trim_start && dot_end) || (trim_end && dot_start)) {
+              /* Remove wire */
+              let { wires } = this.state;
+              delete wires[active_component._id];
+              emitter.emit(`remove_active_dot_${this.recent_dot._id}`);
+              emitter.emit(`active_dot_${dot._id}`);
+              this.recent_dot = dot;
+              return this.setState({ wires, active_component: null });
+            } else if (trim_start)
+              active_component.path[0] = [dot.left, dot.top];
+            else if (trim_end) active_component.path[1] = [dot.left, dot.top];
+            else {
+              /* Split wire */
+              let lower_dot, higher_dot;
+              if (this.recent_dot.left === dot.left) {
+                if (this.recent_dot.top > dot.top) {
+                  lower_dot = dot;
+                  higher_dot = this.recent_dot;
+                } else if (this.recent_dot.top < dot.top) {
+                  higher_dot = dot;
+                  lower_dot = this.recent_dot;
+                }
+                if (
+                  higher_dot.left === active_component.path[1][0] &&
+                  higher_dot.top === active_component.path[1][1]
+                ) {
+                } else {
+                  this.add_wire([
+                    [higher_dot.left, higher_dot.top],
+                    active_component.path[1],
+                  ]);
+                }
+                active_component.path[1] = [lower_dot.left, lower_dot.top];
+              } else if (this.recent_dot.top === dot.top) {
+                if (this.recent_dot.left > dot.left) {
+                  lower_dot = dot;
+                  higher_dot = this.recent_dot;
+                } else if (this.recent_dot.left < dot.left) {
+                  higher_dot = dot;
+                  lower_dot = this.recent_dot;
+                }
+                if (
+                  higher_dot.left === active_component.path[1][0] &&
+                  higher_dot.top === active_component.path[1][1]
+                ) {
+                } else
+                  this.add_wire([
+                    [higher_dot.left, higher_dot.top],
+                    active_component.path[1],
+                  ]);
+                active_component.path[1] = [lower_dot.left, lower_dot.top];
+              }
+            }
+            if (!this.path_is_a_point(active_component.path))
+              emitter.emit(
+                `update_wire_path_${active_component._id}`,
+                active_component.path
+              );
+            this.setState({ active_component: null });
+            this.recent_wire = null;
+            emitter.emit(`remove_active_dot_${this.recent_dot._id}`);
+            emitter.emit(`active_dot_${dot._id}`);
+            this.recent_dot = dot;
+          } else {
+            wires = this.add_wire([
+              [this.recent_dot.left, this.recent_dot.top],
+              [dot.left, dot.top],
+            ]);
+
+            active_component = dot;
+            emitter.emit(`remove_active_dot_${this.recent_dot._id}`);
+            emitter.emit(`active_dot_${dot._id}`);
+            this.recent_dot = null;
+          }
+
+          this.setState({ active_component });
+        } else if (!touch && active_component._id.startsWith("dot")) {
+          target = is_child_of(target, "dot");
+          if (!target) return;
+
+          let dot = this.state.dots[target.getAttribute("name")];
+
+          if (dot._id === active_component._id) {
+            this.setState({ active_component: null });
+            this.recent_wire = null;
+            return emitter.emit(`remove_active_dot_${active_component._id}`);
+          }
+
+          let new_wire = true;
+          if (this.recent_wire) {
+            if (this.recent_wire.vertical) {
+              // wire vertical continuation
+              if (this.recent_wire.path[0][0] === dot.left) {
+                if (this.recent_wire.path[0][1] === active_component.top) {
+                  this.recent_wire.path[0][1] = dot.top;
+                } else if (
+                  this.recent_wire.path[1][1] === active_component.top
+                ) {
+                  this.recent_wire.path[1][1] = dot.top;
+                }
+                new_wire = false;
+              } else new_wire = true;
+            } else if (!this.recent_wire.vertical) {
+              // wire horizontal continuation
+              if (this.recent_wire.path[1][1] === dot.top) {
+                if (this.recent_wire.path[0][0] === active_component.left) {
+                  this.recent_wire.path[0][0] = dot.left;
+                } else if (
+                  this.recent_wire.path[1][0] === active_component.left
+                ) {
+                  this.recent_wire.path[1][0] = dot.left;
+                }
+                new_wire = false;
+              } else new_wire = true;
+            }
+            if (!this.path_is_a_point(this.recent_wire.path))
+              emitter.emit(
+                `update_wire_path_${this.recent_wire._id}`,
+                this.recent_wire.path
+              );
+            else {
+              let { wires } = this.state;
+              delete wires[this.recent_wire._id];
+              this.recent_dot = dot;
+              let wires_ = this.find_wire(dot);
+              this.recent_wire = wires_.length ? wires_[0] : null;
+              this.setState({ wires, active_component: dot });
+              emitter.emit(`remove_wire_${this.recent_wire._id}`);
+            }
+          }
+          if (new_wire)
+            this.recent_wire = this.add_wire([
+              [active_component.left, active_component.top],
+              [dot.left, dot.top],
+            ]);
+
+          this.setState({ active_component: dot });
+          emitter.emit(`remove_active_dot_${active_component._id}`);
+          emitter.emit(`active_dot_${dot._id}`);
+        } else if (class_list.contains("button")) {
+          if (class_list.contains("add_button")) return;
+
+          let { inputs } = this.state;
+          let input = inputs[id];
+
+          input.on = !input.on;
+
+          emitter.emit(`toggle_input_on_${id}`, input.on);
+          this.setState({ inputs });
         } else {
+          let { left } = this.get_click_location(e, true);
+          if (left < this.allowed_left) {
+            let { gates } = this.state;
+            delete gates[active_component._id];
+          }
+          let { ports } = this.state;
+
           this.setState({ active_component: null });
           emitter.emit(`remove_active_component_${active_component._id}`);
         }
         return;
       }
-      if (class_list.contains("port")) {
+      if (touch || id === "touch_toggler") {
+        if (id !== "touch_toggler") return;
+        this.setState({ touch: !this.state.touch });
+      } else if (class_list.contains("port")) {
         this.setState({ active_component: this.state.wires[id] });
       } else if (is_child_of(target, "dot")) {
-        console.log(target);
         let { dots } = this.state;
-        let { top, left } = this.get_click_location(e);
-        let position_id = `${left},${top}`;
-        let dot = dots[position_id];
-        console.log(dot, position_id);
+        target = is_child_of(target, "dot");
 
-        if (dot.wires.size || active_component) {
-          this.recent_click_coords = { top, left };
-          return this.setState({ active_component: dot });
-        }
+        let dot = dots[target.getAttribute("name")];
+        let wires = this.find_wire(dot);
+        if (wires.length) {
+          this.recent_dot = dot;
+          this.setState({ active_component: wires[0] });
+        } else this.setState({ active_component: dot });
 
-        let { wire, dot_location } = this.add_wire(
-          is_child_of(target, "dot").getAttribute("name").split(",")
-        );
-        dots[`${dot_location[0]},${dot_location[1]}`].wires.add(wire);
-        this.setState({ dots });
-        console.log(this.state.active_component);
+        emitter.emit(`active_dot_${dot._id}`);
       } else if (class_list.contains("gate_body")) {
         if (class_list.contains("add_gate"))
-          this.add_gate(target.getAttribute("name"));
+          this.add_gate(
+            target.getAttribute("name"),
+            this.get_click_location(e, true)
+          );
         else this.setState({ active_component: this.state.gates[id] });
+      } else if (class_list.contains("button")) {
+        if (class_list.contains("add_button"))
+          return this.add_button(
+            target.getAttribute("name"),
+            this.get_click_location(e, true)
+          );
+
+        if (this.state.touch) {
+          let { inputs } = this.state;
+          let input = inputs[id];
+          input.on = !input.on;
+          inputs[id] = input;
+          this.setState({ inputs });
+        } else this.setState({ active_component: this.state.inputs[id] });
       }
     };
 
     document.addEventListener("mousemove", (e) => {
       let { active_component } = this.state;
-      let { top, left } = this.get_click_location(e);
+      let { top, left } = this.get_click_location(e, true);
       emitter.emit("update_coords", { top, left });
-      console.log(active_component);
 
       if (!active_component) return;
 
-      if (active_component._id.startsWith("wire")) {
-        let previous_dot = this.state.active_component.path.slice(-1)[0];
-        let calculated_dot = this.calculate_dot(top, left);
-
-        if (!previous_dot[0]) return;
-
-        this.resort_dot_wires(previous_dot, active_component._id, true);
-
-        if (calculated_dot[0] === previous_dot[0]) {
-          previous_dot[3] = top - previous_dot[1];
-          previous_dot[2] = 2;
-          active_component.path.splice(-1, 1, previous_dot);
-        } else if (calculated_dot[1] === previous_dot[1]) {
-          previous_dot[2] = left - previous_dot[0];
-          active_component.path.splice(-1, 1, previous_dot);
-          previous_dot[3] = 2;
-        }
-
-        emitter.emit(
-          `wire_current_endpoint_${active_component._id}`,
-          active_component.path
-        );
-
-        this.resort_dot_wires(
-          active_component.path.slice(-1)[0],
-          active_component._id,
-          false
-        );
-
-        this.setState({ active_component });
-      } else if (active_component._id.startsWith("dot")) {
-        let wires = Array.from(active_component.wires);
-        let { top, left } = this.get_click_location(e);
-
-        wires.map((wire) => {
-          wire = this.state.wires[wire];
-          let calculated_dot = this.calculate_dot(top, left, wire);
-          let vertical;
-          for (let p = 0; p < (this.wire_path ? 1 : wire.path.length); p++) {
-            let path = this.wire_path || wire.path[p];
-            if (path[0] === calculated_dot[0]) {
-              let wire_length = path[1] + path[3];
-              if (!this.wire_path) {
-                console.log("isityou");
-                if (
-                  path[3] > 0 &&
-                  (calculated_dot[1] < path[1] ||
-                    calculated_dot[1] > wire_length)
-                ) {
-                  console.log(calculated_dot, path);
-                  continue;
-                }
-                if (
-                  path[3] < 0 &&
-                  (calculated_dot[1] > path[1] ||
-                    calculated_dot[1] < wire_length)
-                ) {
-                  console.log(calculated_dot, path, "NEGATIF");
-                  continue;
-                }
-                this.wire_path = path;
-              }
-              console.log(path, "Holla me nau");
-
-              vertical = true;
-              if (path[3] > 0) {
-                if (path[1] + path[3] >= this.recent_click_coords.top) {
-                  let diff = path[1] + path[3] - this.recent_click_coords.top;
-                  if (this.floating_wire) {
-                  } else
-                    this.floating_wire = [
-                      path[0],
-                      this.recent_click_coords.top,
-                      2,
-                      diff,
-                      wire._id,
-                    ];
-                } else
-                  console.log(
-                    path[0],
-                    path[1],
-                    path[2],
-                    path[3],
-                    this.recent_click_coords,
-                    "ELSE WHAT!"
-                  );
-
-                path[3] = top - path[1];
-                console.log("HHHHHEEEELLLLLOOOOO");
-              } else if (path[3] < 0) {
-                console.log("EVERHERE");
-                let diff;
-                if (
-                  path[1] >= this.recent_click_coords.top &&
-                  path[1] + path[3] <= this.recent_click_coords.top
-                ) {
-                  diff = path[1] + path[3] - this.recent_click_coords.top;
-
-                  if (this.floating_wire) {
-                  } else
-                    this.floating_wire = [
-                      path[0],
-                      this.recent_click_coords.top + diff,
-                      2,
-                      diff,
-                      wire._id,
-                    ];
-                } else
-                  console.log(
-                    path[0],
-                    path[1],
-                    path[2],
-                    path[3],
-                    this.recent_click_coords,
-                    "ELSE WHAT!"
-                  );
-                console.log(diff, this.floating_wire, "HOLLA ME");
-                path[3] = diff * -1;
-              }
-            } else if (path[1] === calculated_dot[1]) {
-              console.log("HORIZONTALLLLL");
-              vertical = false;
-
-              let wire_horizontal_length = path[0] + path[2];
-              if (
-                !this.wire_path &&
-                (calculated_dot[0] < path[0] ||
-                  calculated_dot[0] > wire_horizontal_length)
-              )
-                continue;
-              else this.wire_path = path;
-
-              if (path[0] + path[2] >= this.recent_click_coords.left) {
-                let diff = path[0] + path[2] - this.recent_click_coords.left;
-                if (this.floating_wire) {
-                } else
-                  this.floating_wire = [
-                    this.recent_click_coords.left,
-                    path[1],
-                    diff,
-                    2,
-                    wire._id,
-                  ];
-              }
-
-              path[2] = left - path[0];
-            }
-            if (vertical !== undefined) {
-              wire.path[p] = path;
-              break;
-            }
-          }
-          if (vertical !== undefined) {
-            console.log("ever got in here????????");
-            emitter.emit(`wire_current_endpoint_${wire._id}`, wire.path);
-            emitter.emit(`floating_wire_${wire._id}`, this.floating_wire);
-            return;
-          }
-        });
-      } else
-        emitter.emit(`component_position_${active_component._id}`, {
-          top,
-          left,
-        });
+      emitter.emit(`component_position_${active_component._id}`, {
+        top,
+        left,
+      });
     });
   };
 
   add_wire = (dot_location) => {
-    let { wires, dots } = this.state;
+    let { wires } = this.state;
     let wire_id = _id("wire");
+
+    let [start, end] = dot_location;
+
+    let top = start[1];
+    let left = start[0];
+    let width = end[0] - start[0] || 2;
+    let height = end[1] - start[1] || 2;
+
+    if (Math.abs(width) > Math.abs(height)) height = 2;
+    else width = 2;
+
+    if (width < 0) {
+      left = left + width;
+      width = width * -1;
+    }
+    if (height < 0) {
+      top = top + height;
+      height = height * -1;
+    }
+
+    dot_location = [
+      [left, top],
+      [round_nearest_20(left + width), round_nearest_20(top + height)],
+    ];
 
     let wire = {
       _id: wire_id,
-      path: new Array([...dot_location.map((d) => Number(d)), 0, 0]),
+      path: dot_location,
+      vertical: dot_location[0][0] === dot_location[1][0],
     };
 
-    wires[wire_id] = wire;
-    dots[`${dot_location[0]},${dot_location[1]}`].wires.add(wire_id);
+    if (
+      dot_location[0].find((l) => typeof l !== "number") ||
+      dot_location[1].find((l) => typeof l !== "number") ||
+      this.path_is_a_point(dot_location)
+    )
+      return;
 
-    this.setState({ wires, active_component: wire, dots });
+    let found;
+    while (true) {
+      found = false;
+      for (const wire_id in wires) {
+        let wire_ = wires[wire_id];
 
-    return { wire: wire_id, dot_location };
+        if (wire.vertical && wire_.vertical) {
+          if (wire.path[0][1] === wire_.path[1][1]) {
+            wire_.path[1] = wire.path[1];
+            found = true;
+          } else if (wire.path[1][1] === wire_.path[0][1]) {
+            wire_.path[0] = wire.path[0];
+            found = true;
+          }
+        } else if (!wire.vertical && !wire_.vertical) {
+          if (wire.path[1][0] === wire_.path[0][0]) {
+            wire_.path[0] = wire.path[0];
+            found = true;
+          } else if (wire.path[0][0] === wire_.path[1][0]) {
+            wire_.path[1] = wire.path[1];
+            found = true;
+          }
+        }
+        if (found) {
+          delete wires[wire_._id];
+          wire = wire_;
+        }
+      }
+      if (!found) break;
+    }
+
+    wires[wire._id] = wire;
+
+    this.setState({ wires });
+
+    return wire;
   };
 
-  add_gate = (name) => {
+  path_is_a_point = (dot_location) => {
+    return (
+      dot_location[0][0] === dot_location[1][0] &&
+      dot_location[0][1] === dot_location[1][1]
+    );
+  };
+
+  add_gate = (name, { top, left }) => {
     let { gates } = this.state;
 
     let gate_id = _id(name);
     let gate = {
       name,
-      top: this.default_top,
-      left: this.default_left,
+      top,
+      left,
       _id: gate_id,
     };
 
     gates[gate_id] = gate;
-    this.setState({ gates });
+    this.setState({ gates, active_component: gate });
+    this.recent_dot && emitter.emit(`remove_active_dot_${this.recent_dot._id}`);
+  };
+
+  add_button = (name, { top, left }) => {
+    let { inputs } = this.state;
+
+    let input_id = _id(name);
+
+    let input = {
+      name,
+      _id: input_id,
+      top,
+      left,
+      on: new Array("constant", "ground").includes("name"),
+    };
+
+    inputs[input_id] = input;
+
+    this.setState({ inputs, active_component: input });
+    this.recent_dot && emitter.emit(`remove_active_dot_${this.recent_dot._id}`);
   };
 
   render = () => {
-    let { gates, dots, wires } = this.state;
+    let { gates, inputs, touch, outputs, dots, wires } = this.state;
 
     return (
-      <div id="main" onClick={this.onclick}>
-        <Sidepane />
-        <Board gates={gates} dots={dots} wires={wires} />
+      <div
+        id="main"
+        onClick={this.onclick}
+        style={{
+          cursor: touch ? "pointer" : null,
+        }}
+      >
+        <Sidepane touch={touch} />
+        <Board
+          inputs={inputs}
+          outputs={outputs}
+          gates={gates}
+          dots={dots}
+          wires={wires}
+        />
       </div>
     );
   };

@@ -50,4 +50,28 @@ const round_nearest_20 = (num) => {
   return Math.round(num / 20) * 20;
 };
 
-export { _id, gen_random_int, charset, is_child_of, round_nearest_20 };
+const copy_object = (object) => {
+  if (!object) return object;
+
+  if (typeof object !== "object") return object;
+
+  let object_;
+  if (Array.isArray(object)) {
+    object_ = new Array(...object).map((obj) => copy_object(obj));
+  } else {
+    object_ = {};
+    for (const key in object) {
+      object_[key] = copy_object(object[key]);
+    }
+  }
+  return object_;
+};
+
+export {
+  _id,
+  gen_random_int,
+  charset,
+  is_child_of,
+  round_nearest_20,
+  copy_object,
+};

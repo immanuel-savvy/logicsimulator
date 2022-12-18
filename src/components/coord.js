@@ -18,7 +18,7 @@ class Coords extends React.Component {
     let { coords } = this.state;
     let { top, left } = coords;
 
-    return <span style={{}}>{`${left} X ${top}`}</span>;
+    return <span style={{}}>{`Position: ${left} x ${top}`}</span>;
   }
 }
 

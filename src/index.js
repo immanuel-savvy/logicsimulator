@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "./index.css";
+import "react-web-vector-icons/fonts";
 import Simulator from "./Simulator";
 import reportWebVitals from "./reportWebVitals";
 
