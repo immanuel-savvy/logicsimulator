@@ -3,12 +3,7 @@ import React from "react";
 import Sidepane from "./sections.js/sidepane";
 import Board from "./sections.js/board";
 import Emitter from "semitter";
-import {
-  copy_object,
-  is_child_of,
-  round_nearest_20,
-  _id,
-} from "./assets/js/utils";
+import { is_child_of, round_nearest_20, _id } from "./assets/js/utils";
 
 const emitter = new Emitter();
 
@@ -20,6 +15,7 @@ class Simulator extends React.Component {
       gates: new Object(),
       dots: new Object(),
       wires: new Object(),
+      ports: new Object(),
       inputs: new Object(),
       outputs: new Object(),
     };
@@ -374,7 +370,16 @@ class Simulator extends React.Component {
         return;
       }
       if (touch || id === "touch_toggler") {
-        if (id !== "touch_toggler") return;
+        if (touch && class_list.contains("button")) {
+          let { inputs } = this.state;
+          let input = inputs[id];
+          input.on = !input.on;
+          inputs[id] = input;
+          input.port = this.setState({ inputs });
+          emitter.emit(`toggle_input_on_${id}`, input.on);
+          return;
+        } else if (id !== "touch_toggler") return;
+
         this.setState({ touch: !this.state.touch });
       } else if (class_list.contains("port")) {
         this.setState({ active_component: this.state.wires[id] });
@@ -404,12 +409,7 @@ class Simulator extends React.Component {
             this.get_click_location(e, true)
           );
 
-        if (this.state.touch) {
-          let { inputs } = this.state;
-          let input = inputs[id];
-          input.on = !input.on;
-          inputs[id] = input;
-          this.setState({ inputs });
+        if (touch) {
         } else this.setState({ active_component: this.state.inputs[id] });
       }
     };
@@ -531,21 +531,29 @@ class Simulator extends React.Component {
   };
 
   add_button = (name, { top, left }) => {
-    let { inputs } = this.state;
+    let { inputs, ports } = this.state;
 
     let input_id = _id(name);
+
+    let port = {
+      _id: _id("port"),
+      source: input_id,
+    };
 
     let input = {
       name,
       _id: input_id,
       top,
       left,
+      port: port._id,
       on: new Array("constant", "ground").includes("name"),
     };
 
+    port.state = input.on;
+
     inputs[input_id] = input;
 
-    this.setState({ inputs, active_component: input });
+    this.setState({ ports, inputs, active_component: input });
     this.recent_dot && emitter.emit(`remove_active_dot_${this.recent_dot._id}`);
   };
 

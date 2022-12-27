@@ -9,8 +9,19 @@ class Port extends React.Component {
 
   render() {
     let { style } = this.props;
+    let { port } = this.state;
+    let { state } = port || new Object();
 
-    return <div className="port" style={{ ...style, cursor: "pointer" }}></div>;
+    return (
+      <div
+        className="port"
+        style={{
+          ...style,
+          cursor: "pointer",
+          backgroundColor: state ? "green" : "grey",
+        }}
+      ></div>
+    );
   }
 }
 

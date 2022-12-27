@@ -22,7 +22,7 @@ class Buttons extends React.Component {
       this.component_position
     );
     emitter.single_listener(
-      `toggle_input_on${button._id}`,
+      `toggle_input_on_${button._id}`,
       this.toggle_input_on
     );
   };

@@ -15,7 +15,7 @@ class Board extends React.Component {
   }
 
   render() {
-    let { dots, gates, inputs, outputs, wires } = this.props;
+    let { dots, gates, ports, inputs, outputs, wires } = this.props;
 
     return (
       <div id="board">
@@ -23,9 +23,12 @@ class Board extends React.Component {
           return <Dot dot={dots[key]} key={index} />;
         })}
 
-        {Object.keys(inputs).map((input_id) => (
-          <Inputs_wrapper key={input_id} input={inputs[input_id]} />
-        ))}
+        {Object.keys(inputs).map((input_id) => {
+          let input = inputs[input_id];
+          input.port = ports[input.port];
+
+          return <Inputs_wrapper key={input_id} input={input} />;
+        })}
 
         {Object.keys(outputs).map((output_id) => (
           <Output_wrapper key={output_id} output={outputs[output_id]} />
